@@ -756,7 +756,7 @@ export function createRenderer(canvas, world) {
       const done = saveData ? saveData.missionIndex : 0;
       panelEl.innerHTML = `<div class="card"><h1>SUNVALE 3D</h1>
         <h2>An open-world crime story in the spirit of GTA 6 — a city to take, on foot and by car.</h2>
-        <p>Marla runs this town. She has ten jobs for you: steal cars, move packages, meet contacts, and break police dragnets. The cops answer with wanted stars — lose them or pay for them.</p>
+        <p>Marla runs this town. She has twenty jobs for you: steal cars, move packages, meet contacts, and break police dragnets. The cops answer with wanted stars — lose them or pay for them.</p>
         <p>WASD / arrows — move &amp; drive &nbsp;·&nbsp; E — steal / exit a car &nbsp;·&nbsp; Space — punch &nbsp;·&nbsp; Click — shoot &nbsp;·&nbsp; Shift — sprint &nbsp;·&nbsp; P — pause</p>
         <p class="fine">${done > 0 ? `Progress saved: ${done} mission${done > 1 ? 's' : ''} done.` : 'No Rockstar names, art, music or map — an original city.'}</p>
         <p class="prompt">Press Space or click to start</p></div>`;

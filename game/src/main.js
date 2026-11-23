@@ -101,7 +101,7 @@ function runGame() {
     applySave();
     accumulator = 0;
     screen = SCREEN_PLAY;
-    announce('Playing. Marla has ten jobs for you.');
+    announce('Playing. Marla has twenty jobs for you.');
   }
 
   function endGame() {

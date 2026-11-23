@@ -2,6 +2,11 @@
 // 1600 units on a side, centred on the origin: x points east, z points south, y is up.
 // The simulation steps at a fixed 1/60 s, so none of these numbers depend on frame rate.
 
+import { CHAPTER_A } from './story/chapterA.js';
+import { CHAPTER_B } from './story/chapterB.js';
+import { CHAPTER_C } from './story/chapterC.js';
+import { CHAPTER_D } from './story/chapterD.js';
+
 export const STEP = 1 / 60;
 
 /** Street layout: a road every roadGap units, roadWidth wide, spanning -half..+half. */
@@ -128,7 +133,7 @@ export const PISTOL = {
 };
 
 /**
- * Marla's ten jobs, in order. `kind` picks the rule that completes the job:
+ * Marla's twenty jobs, in order. `kind` picks the rule that completes the job:
  * steal — take a car, drive it to the marker; deliver — pick up on foot, then drop off;
  * evade — the heat is set for you, lose it or reach the hideout; walk — reach the
  * marker on foot. `stars` only matters for evade jobs: the heat it starts with.
@@ -206,6 +211,11 @@ export const MISSIONS = [
     brief: 'Pick up the big score on foot, then deliver it to the far marker.',
     done: 'The Big Score delivered  +$1500',
   },
+  // The Viper War arc (Missions 10-19), written as four chapters in game/src/story/.
+  ...CHAPTER_A,
+  ...CHAPTER_B,
+  ...CHAPTER_C,
+  ...CHAPTER_D,
 ];
 
 /** Pool sizes: every car, pedestrian, cop, particle and shot is allocated once, at boot. */

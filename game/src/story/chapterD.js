@@ -1,28 +1,31 @@
-// Sunvale 3D — Chapter D: "The Viper War", Act 3 finale (Missions 17-19).
-// Same shape as the MISSIONS entries in config.js: {name, reward, kind, brief, done},
-// with `stars` on the evade job. Marla runs the crew; the Vipers are done after this.
+// Chapter D — The Viper War, Act 3 finale (missions 17-19).
+// A four-star manhunt, the nest gets cased, and the Vipers fall.
 
-export const CHAPTER_D = [
+export const chapterD = [
   {
     name: 'No Way Out',
-    reward: 3500,
     kind: 'evade',
+    reward: 3500,
     stars: 4,
-    brief: 'Four stars and the whole city is after you — lose the heat or reach the hideout.',
-    done: 'No Way Out survived  +$3500',
+    brief: 'Marla: Every cop in Sunvale is looking for you. Four stars. Lose them and get to the safehouse.',
+    done: 'Four stars and you walked away. Legend.',
+    hideout: { x: -200, z: -700 },
   },
   {
     name: 'The Nest',
-    reward: 4000,
     kind: 'walk',
-    brief: 'Walk to the abandoned casino and scout the Vipers\u2019 nest without raising the alarm.',
-    done: 'The Nest scouted  +$4000',
+    reward: 4000,
+    brief: "Marla: The Vipers' nest is the abandoned casino. Walk over and case it — don't spook them.",
+    done: 'You cased the nest. Marla has the full picture.',
+    target: { x: 680, z: 600 },
   },
   {
     name: 'End of the Vipers',
-    reward: 5000,
     kind: 'deliver',
-    brief: 'Pick up the package on foot, deliver it to the casino marker to blow the Vipers\u2019 nest, then drive away — after this job, Sunvale is Marla\u2019s.',
-    done: 'The Vipers are finished — Sunvale is Marla\u2019s now  +$5000',
+    reward: 5000,
+    brief: 'Marla: Last job. Carry this package into the casino, light up their nest, and drive away. After this, Sunvale is ours.',
+    done: 'The Vipers are finished. Sunvale belongs to Marla — and to you.',
+    pickup: { x: 200, z: -300 },
+    dropoff: { x: 680, z: 600 },
   },
 ];

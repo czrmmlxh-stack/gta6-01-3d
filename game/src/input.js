@@ -1,75 +1,64 @@
-// Keyboard and pointer input. Held keys are movement; one-shot presses (confirm, pause,
-// enter a car, punch) are queued as bit flags and taken once by the loop, so a press
-// between two frames is never lost and never counted twice. A mouse click is a shot
-// request carrying the world point the renderer worked out from the cursor.
+// Keyboard input state. Tracks which keys are held and fires one-shot
+// presses (E to enter/exit a car, F to punch, G to fire the pistol,
+// P or Escape to pause). The world reads this every frame.
 
-export const ACTION_CONFIRM = 1;
-export const ACTION_PAUSE = 2;
-export const ACTION_ENTER = 4;
-export const ACTION_PUNCH = 8;
+export function createInput() {
+  const keys = new Set();
+  const pressed = new Set();
+  let attached = false;
 
-const UP = new Set(['ArrowUp', 'KeyW']);
-const DOWN = new Set(['ArrowDown', 'KeyS']);
-const LEFT = new Set(['ArrowLeft', 'KeyA']);
-const RIGHT = new Set(['ArrowRight', 'KeyD']);
-const SPRINT = new Set(['ShiftLeft', 'ShiftRight']);
-const CONFIRM = new Set(['Space', 'Enter']);
-const PAUSE = new Set(['KeyP', 'Escape']);
-const ENTER = new Set(['KeyE']);
+  function onDown(ev) {
+    const k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+    if (!keys.has(k)) pressed.add(k);
+    keys.add(k);
+    if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(ev.key)) {
+      ev.preventDefault();
+    }
+  }
 
-export function createInput(target, onShoot) {
-  let up = false;
-  let down = false;
-  let left = false;
-  let right = false;
-  let sprint = false;
-  let queued = 0;
-
-  window.addEventListener('keydown', (event) => {
-    if (UP.has(event.code)) up = true;
-    else if (DOWN.has(event.code)) down = true;
-    else if (LEFT.has(event.code)) left = true;
-    else if (RIGHT.has(event.code)) right = true;
-    else if (SPRINT.has(event.code)) sprint = true;
-    else if (ENTER.has(event.code)) {
-      if (!event.repeat) queued |= ACTION_ENTER;
-    } else if (CONFIRM.has(event.code)) {
-      if (!event.repeat) queued |= ACTION_CONFIRM | ACTION_PUNCH;
-    } else if (PAUSE.has(event.code)) {
-      if (!event.repeat) queued |= ACTION_PAUSE;
-    } else return;
-    event.preventDefault();
-  });
-  window.addEventListener('keyup', (event) => {
-    if (UP.has(event.code)) up = false;
-    else if (DOWN.has(event.code)) down = false;
-    else if (LEFT.has(event.code)) left = false;
-    else if (RIGHT.has(event.code)) right = false;
-    else if (SPRINT.has(event.code)) sprint = false;
-  });
-  // A key released while the tab is hidden never sends keyup: let go of all of them.
-  window.addEventListener('blur', () => {
-    up = false;
-    down = false;
-    left = false;
-    right = false;
-    sprint = false;
-  });
-  target.addEventListener('pointerdown', (event) => {
-    if (event.button === 0) onShoot(event.clientX, event.clientY);
-  });
-  target.addEventListener('contextmenu', (event) => event.preventDefault());
+  function onUp(ev) {
+    const k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+    keys.delete(k);
+  }
 
   return {
-    /** The held movement keys, as an object the world steps with. */
-    move() {
-      return { up, down, left, right, sprint };
+    attach() {
+      if (attached) return;
+      attached = true;
+      window.addEventListener('keydown', onDown);
+      window.addEventListener('keyup', onUp);
     },
-    /** The one-shot presses since the last call, as ACTION_* flags. */
-    takeActions() {
-      const taken = queued;
-      queued = 0;
-      return taken;
+    detach() {
+      if (!attached) return;
+      attached = false;
+      window.removeEventListener('keydown', onDown);
+      window.removeEventListener('keyup', onUp);
+    },
+    held(k) {
+      return keys.has(k);
+    },
+    // True once per physical press; consumed by the caller each frame.
+    wasPressed(k) {
+      return pressed.has(k);
+    },
+    endFrame() {
+      pressed.clear();
+    },
+    // WASD + arrows, as a -1..1 pair. x: right, z: forward.
+    moveAxes() {
+      let x = 0;
+      let z = 0;
+      if (keys.has('a') || keys.has('ArrowLeft')) x -= 1;
+      if (keys.has('d') || keys.has('ArrowRight')) x += 1;
+      if (keys.has('w') || keys.has('ArrowUp')) z -= 1;
+      if (keys.has('s') || keys.has('ArrowDown')) z += 1;
+      return { x, z };
+    },
+    get run() {
+      return keys.has('Shift');
+    },
+    get brake() {
+      return keys.has(' ');
     },
   };
 }

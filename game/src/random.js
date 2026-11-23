@@ -1,17 +1,32 @@
-// A seeded random source (mulberry32): the same seed builds the same city, the same
-// traffic and the same pedestrians, which is what makes the screenshot scenes repeatable.
+// Seeded random numbers. The city is identical on every load because
+// everything random in the game draws from one fixed seed.
 
-export function createRandom(seed) {
-  let state = seed | 0;
+export function mulberry32(seed) {
+  let a = seed >>> 0;
   return function next() {
-    state = (state + 0x6d2b79f5) | 0;
-    let value = Math.imul(state ^ (state >>> 15), 1 | state);
-    value = (value + Math.imul(value ^ (value >>> 7), 61 | value)) ^ value;
-    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
 
-/** One element of `list`, chosen with `random`. */
-export function pick(random, list) {
-  return list[Math.floor(random() * list.length)];
+export function makeRng(seed) {
+  const next = mulberry32(seed);
+  return {
+    next,
+    range(lo, hi) {
+      return lo + next() * (hi - lo);
+    },
+    int(lo, hi) {
+      return Math.floor(lo + next() * (hi - lo + 1));
+    },
+    pick(list) {
+      return list[Math.floor(next() * list.length)];
+    },
+    chance(p) {
+      return next() < p;
+    },
+  };
 }

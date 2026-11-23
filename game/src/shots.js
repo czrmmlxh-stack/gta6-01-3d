@@ -1,136 +1,123 @@
-// The screenshot scenes behind ?shot=start|play|chase|end. Each one plays the real rules
-// forward from a fresh world for a fixed number of steps, steered by a simple autopilot
-// that drives the player's car along the road grid toward a goal — so the frame is what
-// a short game really looks like, and the same seed always gives the same frame.
+// Screenshot presets. `?shot=<name>` puts the game into a fixed,
+// deterministic scene for the four screenshots the entry ships with.
+// The presets only move the player and set state — they never change
+// the underlying data or the mission list.
 
-import { STEP } from './config.js';
-import { EVENT_OVER } from './world.js';
-import { SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
-import { adjacentIntersections, nearestIntersection } from './city.js';
+import { DISTRICTS } from './config.js';
+import { teleportPlayer, startMission } from './world.js';
 
-const START_SECONDS = 5;
-const PLAY_SECONDS = 24;
-const CHASE_SECONDS = 20;
-const END_LIMIT_SECONDS = 120;
-export const SHOT_SEED = 20261123;
-
-const IDLE = {
-  up: false, down: false, left: false, right: false,
-  sprint: false, enter: false, punch: false, shoot: null,
+export const SHOTS = {
+  '1-start': {
+    label: 'Title screen over the city',
+    setup(w) {
+      w.started = false;
+      teleportPlayer(w, DISTRICTS.plaza.x, DISTRICTS.plaza.z + 24, 0.6);
+    },
+  },
+  '2-play': {
+    label: 'Gameplay with the mission HUD',
+    setup(w) {
+      w.started = true;
+      startMission(w, 0);
+      // Face the plaza beacon so the mission marker reads in the shot.
+      teleportPlayer(w, 60, 60, -2.36);
+      const car = w.cars[0];
+      if (car) {
+        car.x = 60;
+        car.z = 52;
+        car.angle = -2.36;
+        car.speed = 0;
+        car.kind = 'player';
+        car.stolen = true;
+        w.player.onFoot = false;
+        w.player.carId = car.id;
+        w.player.x = car.x;
+        w.player.z = car.z;
+        w.player.angle = car.angle;
+      }
+    },
+  },
+  '3-chase': {
+    label: 'Police chase at three stars',
+    setup(w) {
+      w.started = true;
+      startMission(w, 2);
+      w.wanted = 3;
+      w.heat = 100;
+      teleportPlayer(w, -40, -40, Math.PI * 0.25);
+      const car = w.cars[1];
+      if (car) {
+        car.x = -40;
+        car.z = -48;
+        car.angle = Math.PI * 0.25;
+        car.speed = 0;
+        car.kind = 'player';
+        car.stolen = true;
+        w.player.onFoot = false;
+        w.player.carId = car.id;
+        w.player.x = car.x;
+        w.player.z = car.z;
+        w.player.angle = car.angle;
+      }
+      // Two cop cars close behind, heli overhead.
+      w.police = [];
+      for (let i = 0; i < 2; i += 1) {
+        w.police.push({
+          id: 900 + i,
+          x: -40 - (i + 1) * 14,
+          z: -48 - (i + 1) * 10,
+          angle: Math.PI * 0.25,
+          speed: 20,
+          color: 0x1c2733,
+          kind: 'police',
+          health: 100,
+          ramCooldown: 0,
+        });
+      }
+      // The heli circles at 0.55 rad/s but the software renderer runs the
+      // loop at ~28% of wall speed, so after the ~5 s settle before the
+      // screenshot only ~1.4 s of game time has passed. Start the angle
+      // near 0 so it ends up dead ahead (facing ~0.79), low in frame.
+      w.heli.active = true;
+      w.heli.fade = 1;
+      w.heli.angle = 0.0;
+      w.heli.x = -40 + Math.sin(0.0) * 46;
+      w.heli.z = -40 + Math.cos(0.0) * 46;
+      w.heli.height = 20;
+      w.heli.spotlight = false;
+    },
+  },
+  '4-end': {
+    label: 'Mission complete — the Viper War won',
+    setup(w) {
+      w.started = true;
+      w.cash = 36150;
+      w.respect = 45;
+      w.mission.index = 19;
+      w.allDone = true;
+      w.banners = [{ text: 'THE VIPERS ARE FINISHED — SUNVALE IS OURS', t: 0, dur: 99 }];
+      teleportPlayer(w, DISTRICTS.casino.x - 30, DISTRICTS.casino.z - 20, Math.PI * 0.8);
+      const car = w.cars[2];
+      if (car) {
+        car.x = DISTRICTS.casino.x - 30;
+        car.z = DISTRICTS.casino.z - 28;
+        car.angle = Math.PI * 0.8;
+        car.speed = 0;
+        car.kind = 'player';
+        car.stolen = true;
+        w.player.onFoot = false;
+        w.player.carId = car.id;
+        w.player.x = car.x;
+        w.player.z = car.z;
+        w.player.angle = car.angle;
+      }
+    },
+  },
 };
 
-function wrapAngle(a, b) {
-  let d = (a - b) % (Math.PI * 2);
-  if (d > Math.PI) d -= Math.PI * 2;
-  if (d < -Math.PI) d += Math.PI * 2;
-  return d;
-}
-
-/** Steering input that drives the player's car toward a point. */
-function steerToward(car, tx, tz) {
-  const want = Math.atan2(tx - car.x, tz - car.z);
-  const d = wrapAngle(want, car.angle);
-  return {
-    up: Math.abs(d) < 1.1,
-    down: false,
-    left: d > 0.12,
-    right: d < -0.12,
-    sprint: false, enter: false, punch: false, shoot: null,
-  };
-}
-
-/**
- * A greedy road navigator: it keeps a waypoint intersection, and when the car reaches
- * it, picks the neighbouring intersection closest to the goal. Returns the drive input
- * toward the waypoint.
- */
-function buildNavigator(world, goal) {
-  const state = world.state;
-  const intersections = state.city.intersections;
-  let waypoint = nearestIntersection(state.player.x, state.player.z, intersections);
-  return function input() {
-    const car = state.player.inCar;
-    if (!car) return IDLE;
-    const dx = waypoint.x - car.x;
-    const dz = waypoint.z - car.z;
-    if (dx * dx + dz * dz < 15 * 15) {
-      const next = adjacentIntersections(waypoint, intersections);
-      let best = waypoint;
-      let bd = Infinity;
-      for (const q of next) {
-        const d = (q.x - goal.x) ** 2 + (q.z - goal.z) ** 2;
-        if (d < bd) {
-          bd = d;
-          best = q;
-        }
-      }
-      waypoint = best;
-    }
-    return steerToward(car, waypoint.x, waypoint.z);
-  };
-}
-
-/** Put the player in a nearby traffic car — stealing it, as the game allows. */
-function stealCar(world) {
-  const state = world.state;
-  let car = null;
-  for (const c of state.cars) {
-    if (c.active && !c.isPolice && !c.isPlayer) {
-      car = c;
-      break;
-    }
-  }
-  if (!car) return false;
-  state.player.x = car.x + 3;
-  state.player.z = car.z + 3;
-  world.enterExitCar();
-  return state.player.inCar === car;
-}
-
-/**
- * Set `world` to the named scene (start, play, chase or end; any other name is start)
- * and return the screen to draw over it.
- */
-export function stageShot(name, world) {
-  const state = world.state;
-  world.reset();
-  if (name !== 'play' && name !== 'chase' && name !== 'end') {
-    for (let i = 0; i < START_SECONDS / STEP; i += 1) world.step(STEP, IDLE, true);
-    return { screen: SCREEN_TITLE };
-  }
-
-  if (name === 'chase') {
-    // Three stars before the drive starts, so the police are already closing in; the
-    // heat decays during the chase and it is still two stars when the frame is taken.
-    state.wantedHeat = 90;
-    state.lastCrimeAt = 0;
-  }
-  stealCar(world);
-  if (name === 'chase') {
-    // Stealing added heat; put it back to exactly three stars.
-    state.wantedHeat = 90;
-    state.lastCrimeAt = 0;
-  } else {
-    state.wantedHeat = 0;
-  }
-
-  const goal = name === 'end'
-    ? { x: state.missionMarker.x, z: state.missionMarker.z }
-    : { x: 600, z: -600 };
-  const navigate = buildNavigator(world, goal);
-  const limit = name === 'end' ? END_LIMIT_SECONDS : name === 'chase' ? CHASE_SECONDS : PLAY_SECONDS;
-  let missionDone = false;
-  for (let i = 0; i < limit / STEP; i += 1) {
-    const events = world.step(STEP, navigate(), false);
-    if (name === 'end' && state.missionIndex >= 1) {
-      missionDone = true;
-      break;
-    }
-    if (events & EVENT_OVER) break;
-  }
-  if (name === 'end' && missionDone) {
-    // A couple of seconds more so the mission-complete banner is on screen.
-    for (let i = 0; i < 2 / STEP; i += 1) world.step(STEP, IDLE, false);
-  }
-  return { screen: state.gameOver ? SCREEN_OVER : SCREEN_PLAY };
+export function applyShot(w, name) {
+  const shot = SHOTS[name];
+  if (!shot) return false;
+  shot.setup(w);
+  return true;
 }

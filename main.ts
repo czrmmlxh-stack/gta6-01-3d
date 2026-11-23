@@ -1,36 +1,43 @@
-// Sunvale 3D: a 3D open-world crime game built on this plumbing — a three.js city the player
-// explores on foot and by car, with traffic, pedestrians, a wanted level, police chases, three
-// missions for Marla, combat, a HUD with a minimap, and synthesized sound. The starter's Block
-// Dodger is gone; game/ now holds the 3D game and its vendored three.min.js.
-//
-// Serve it locally with `node serve.ts`, then open http://localhost:8080.
-// Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
-//   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
-
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+// Sunvale 3D — entrypoint. Serves this repository over HTTP so the
+// game can be played in a browser, then prints the URL to open.
+import http from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildDossier } from './vendor/makefun-game.ts';
 
-const here = fileURLToPath(new URL('.', import.meta.url));
-const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+const root = resolve(join(fileURLToPath(import.meta.url), '..'));
+const port = Number(process.env.PORT || 8901);
 
-mkdirSync(out, { recursive: true });
-cpSync(join(here, 'game'), join(out, 'game'), { recursive: true });
-mkdirSync(join(out, 'screenshots'), { recursive: true });
-if (existsSync(join(here, 'screenshots'))) cpSync(join(here, 'screenshots'), join(out, 'screenshots'), { recursive: true });
+const types = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.mjs': 'text/javascript',
+  '.ts': 'text/javascript',
+  '.json': 'application/json',
+  '.css': 'text/css',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+};
 
-// The scorer's own caps (reference/gate.json): only text_max_bytes shapes the bytes; the others refuse an entry the
-// scorer would refuse (more than 4 screenshots or one over 256 KiB; more than 993 files in game/ or 48 MiB of game
-// files, in all, or a path under game/ over 1000 bytes: game/ counts beside /output's own 1000-entry cap, its
-// screenshots/ and dossier.json).
-writeFileSync(
-  join(out, 'dossier.json'),
-  buildDossier(out, {
-    text_max_bytes: 163840,
-    screenshots: { max: 4, max_bytes: 262144 },
-    game_max_files: 993,
-    game_max_bytes: 50331648,
-    game_path_max_bytes: 1000,
-  }),
-);
+const server = http.createServer(async (req, res) => {
+  const path = normalize(join(root, decodeURIComponent(req.url.split('?')[0])));
+  const target = path === root ? join(root, 'game', 'index.html') : path;
+  if (!target.startsWith(root)) {
+    res.writeHead(403);
+    res.end('forbidden');
+    return;
+  }
+  try {
+    const data = await readFile(target);
+    res.writeHead(200, { 'content-type': types[extname(target)] || 'application/octet-stream' });
+    res.end(data);
+  } catch (err) {
+    res.writeHead(404);
+    res.end('not found');
+  }
+});
+
+server.listen(port, () => {
+  console.log(`Sunvale 3D running at http://localhost:${port}/game/index.html`);
+});
